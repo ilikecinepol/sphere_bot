@@ -1,0 +1,100 @@
+#include "MPU6050.h"                 // Подключение библиотеки MPU6050 
+#include "Wire.h"                    // Подключение библиотеки WireCdev
+#include "GyverFilters.h"
+#include <AutoPID.h>
+
+
+//pid settings and gains
+int OUTPUT_MIN= 0;
+int OUTPUT_MAX = 255;
+float KP = 0.1;
+float KI = 0.0;
+int KD = 0;
+
+int en = 16;
+int ina = 15;
+int inb = 14;
+int pwm_pin = 13;
+int alphaX0 = 0;
+int velocity = 0;
+MPU6050 GY521;                       // Создаем объект, символизирующий модуль датчика
+int16_t ax, ay, az;                  // Переменные для хранения значений акселерометра
+int16_t gx, gy, gz;                  // Переменные для хранения значений гироскоп
+
+// Рабочие переменные
+int16_t f_ax;
+
+
+GKalman testFilter(400, 40, 0.5);
+void setup() {
+  GY521.getMotion6(&ax, &ay, &az, &gx, &gy, &gz); // Чтение значений гироскопа и акселерометра
+ 
+  // put your setup code here, to run once:
+  pinMode(en, OUTPUT);
+  pinMode(ina, OUTPUT);
+  pinMode(inb, OUTPUT);
+  pinMode(pwm_pin, OUTPUT);
+  Wire.begin();                         // Инициализация Wire
+  Serial.begin(9600);                  // Инициализация последовательного порта
+  Serial.println("Initializing I2C devices..."); // Печать текста
+  GY521.initialize();                   // Инициализация MPU
+  delay(100);                           // Пауза
+  delay(3000);
+  alphaX0 = 0;
+}
+void limiter(int value, int min=-100, int max = 100){
+  if (value < min){
+    return min;
+  }
+  else if (value > max){
+    return max;
+  }
+  else{
+    return value;
+  }
+}
+void moving(int v){
+  if (v>0){
+    
+    digitalWrite(ina, 1);
+    digitalWrite(inb, 0 );
+  }
+  else{
+    
+    digitalWrite(ina, 0);
+    digitalWrite(inb, 1);
+  }
+  digitalWrite(en, 1);
+  analogWrite(pwm_pin, map(v, -2000, 2000, 0, 250));
+}
+void my_pid(int16_t val, int16_t goal, float KP){
+  return ((goal - val) * KP);
+  
+}
+void loop() {
+  
+ GY521.getMotion6(&ax, &ay, &az, &gx, &gy, &gz); // Чтение значений гироскопа и акселерометра
+ /*
+  // вывод значений в монитор
+  Serial.print("a/g:\t");
+  
+  //Serial.print(ay); Serial.print("\t");
+  //Serial.print(az); Serial.print("\t");
+  //Serial.print(gx); Serial.println("\t");
+  //Serial.print(gy); Serial.print("\t");
+  //Serial.println(gz);
+  
+  f_ax = testFilter.filtered((int)ax);
+  //Serial.print(f_ax); Serial.println("\t");
+  //Serial.print(ax); Serial.println("\t");
+  delay(50); 
+  */
+  AutoPID myPID(f_ax, alphaX0, velocity, -250, 250, KP, KI, KD);
+ 
+  moving(velocity);
+
+  
+  Serial.print(velocity); Serial.println("\t");
+  
+  //moving(-200);
+}
